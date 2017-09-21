@@ -1,6 +1,6 @@
+![alt text](HyperScript-128.png)
 # HyperScript
-A new language translator
-
+ГиперСкрипт - Новый язык для Web, который не тащит за собой груз императивных языков прошлого века.
 
 ## Первое и главное! Надоели уже СТРОКИ!!!!
 ```javascript
