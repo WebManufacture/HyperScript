@@ -18,50 +18,100 @@ level0 = function(owner, text){
     return text;
 }
 
-level1 = function(owner, index, code){
+function Block(name){
+    var arr = [];
+    arr.name = name;
+    arr.indexes = {};
+    arr.names = {};
+    arr.type = "block";
+    arr.addIndex = function(name, index){
+        arr.indexes[name] = index;
+        arr.names[index] = name;
+    }
+    arr.toString = function(){
+        var s = "Block(" + this.length + "){\n";
+        for (var i = 0; i < this.length; i++){
+            if (arr.names[i])
+                s += arr.names[i] + " = ";
+            var value = JSON.stringify(this[i]);
+            if (value.length > 100) value = value.slice(0, 100) + "... ,";
+            s += value + "\n";
+        }
+        s += "}";
+    }
+    return arr;
+}
+
+parseExpressions = function(owner, text, motherBlock){
+    text = parseSelectors(owner, text);
+    var blockRegex = /\(block(\d+)\)/ig;
+    var childBlocks = [];
+    while (match = blockRegex.exec(text)){
+        if (match[1]){
+            var blockId = parseInt(match[1]);
+            var block = Block(blockId);
+            childBlocks.push(level1(owner, owner[blockId], block));
+        }
+    }
+    motherBlock.push({ code : text, type: "expression", childs: childBlocks });
+}
+
+parseSelectors = function(owner, code){
     var selectorRegex = /(([_$A-Za-z0-9]+)?(#[_$A-Za-z0-9]+)?(\.[_$A-Za-z0-9]+)*)\(block(\d+)\)/ig;
     while (match = selectorRegex.exec(code)){
         if (match[1]){
             var part1 = code.slice(0, match.index);
             var part2 = code.slice(match.index + match[1].length);
-            owner.push(match[1]);
+            owner.push(
+                {
+                    type: "selector", 
+                    code: match[1],
+                    block: match[3],
+                    id: owner.length
+                });
             code = part1 + "(selector" + (owner.length-1) + ")" + part2;
-            owner[index] = code;
         }
     }
+    return code;
 }
 
-level2 = function(owner, code){
-    var blockRegex = /\(block(\d+)\)/ig;
-    var parts = code.split(';');
-    var results = [];
+level1 = function(owner, code, block){
+    var parts = code.split('\n');
     for (var i = 0; i < parts.length; i++){
         var line = parts[i];
         line = line.trim();
         if (!line) continue;
-        var childs = [];
-        while (match = blockRegex.exec(line)){
-            if (match[1]){
-                var block = owner[parseInt(match[1])];
-                childs.push(level2(owner, block));
+        
+        var parts2 = line.split(';');
+        //if (parts2.length > 1 && parts2[parts2.length-1].indexOf("//") == 0) parts2[parts2.length-1] = { type: "comment", text: parts2[parts2.length-1]};
+        for (var j = 0; j < parts2.length; j++){
+            if (typeof parts2[j] == "object"){
+                block.push(parts2[j]);
+                continue;
             }
+            line = (parts2[j] + "").trim();
+            if (!line) continue;
+            parseExpressions(owner, line, block);
         }
-        results.push({ code : line, childs: childs });
     }
-    return { code : code, lines: results };
+    return block;
 }
 
-level3 = function(items, prefix){
+debugItems = function(block, prefix){
     if (!prefix) prefix = ' ';
-    if (items.childs){
-        console.log(prefix + " " + items.code);
-        for (var i = 0; i < items.childs.length; i++){
-            level3(items.childs[i], '  |' + prefix);   
+    if (block.type == "block"){
+        console.log(prefix + "--" + block.name);
+        for (var i = 0; i < block.length; i++){
+            var items = block[i];
+            debugItems(items, "  |" + prefix);
         }
     }
-    if (items.lines){
-        for (var i = 0; i < items.lines.length; i++){
-            level3(items.lines[i], prefix);   
+    if (block.type == "expression"){
+        console.log(prefix + " " + block.code);
+        if (items.childs){
+            for (var k = 0; k < items.childs.length; k++) {
+                debugItems(items.childs[k], "  |" + prefix);
+            }
         }
     }
 }
@@ -71,12 +121,17 @@ translator = function(code){
     code = "{" + code + "}\n";
     code = code.replace(/\}\s*\n/ig, "};");
     var rootObj = level0(owner, code);
+    var rootObjIndex = owner.length - 1;
+    var rootBlock = Block("root");
+    var rootObj = level1(owner, rootObj, rootBlock);
+    /*
     for (var i = 0; i < owner.length; i++){
         level1(owner, i, owner[i]);
-    }
-    var items = level2(owner, rootObj);
+    }*/
+    //var items = level2(owner, rootObj);
     console.log(owner);
-    level3(items);   
+    console.log(rootObj);
+    debugItems(rootObj);   
 }
 
 translatorOld = function(code){
